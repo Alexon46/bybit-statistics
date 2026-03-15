@@ -5,10 +5,7 @@ import * as db from "../../services/databaseService";
 import { tryDeleteUserMessage, deletePreviousBotMessages } from "../helpers/telegram";
 import { storeMessageIds } from "../helpers/messageStore";
 
-export const ADMIN_KEYBOARD = Markup.keyboard([
-  ["Обновить ранее созданные ордера"],
-  ["Export all"],
-])
+export const ADMIN_KEYBOARD = Markup.keyboard([["Export all"]])
   .resize()
   .persistent();
 
@@ -25,33 +22,6 @@ export async function handleAdmin(ctx: Context): Promise<void> {
 
   const msg = await ctx.reply("Админ-панель. Выберите действие:", ADMIN_KEYBOARD);
   storeMessageIds(userId, [msg.message_id]);
-}
-
-export async function handleUpdateOrders(ctx: Context): Promise<void> {
-  const userId = ctx.from?.id;
-  if (!userId || !isAdmin(userId)) return;
-
-  await tryDeleteUserMessage(ctx);
-  await deletePreviousBotMessages(ctx);
-
-  const statusMsg = await ctx.reply("Обновляю данные...");
-
-  try {
-    const { usersUpdated, tradesUpdated } = await db.updateAllTradesWithProfitUsdt();
-    await ctx.telegram.editMessageText(
-      ctx.chat!.id,
-      statusMsg.message_id,
-      undefined,
-      `Готово. Обновлено пользователей: ${usersUpdated}, ордеров: ${tradesUpdated}`
-    );
-    storeMessageIds(userId, [statusMsg.message_id]);
-  } catch (err) {
-    const errMsg = err instanceof Error ? err.message : "Неизвестная ошибка";
-    await ctx.telegram
-      .editMessageText(ctx.chat!.id, statusMsg.message_id, undefined, `Ошибка: ${errMsg}`)
-      .catch(() => {});
-    storeMessageIds(userId, [statusMsg.message_id]);
-  }
 }
 
 export async function handleExportAll(ctx: Context): Promise<void> {

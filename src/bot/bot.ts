@@ -10,12 +10,7 @@ import {
   handleDetailCallback,
   handleUnknownText,
 } from "./handlers/statsHandler";
-import {
-  handleAdmin,
-  handleUpdateOrders,
-  handleExportAll,
-  isAdmin,
-} from "./handlers/adminHandler";
+import { handleAdmin, handleExportAll, isAdmin } from "./handlers/adminHandler";
 
 export function createBot(): Telegraf {
   const token = process.env.TELEGRAM_BOT_TOKEN;
@@ -37,10 +32,6 @@ export function createBot(): Telegraf {
     const userId = ctx.from?.id;
     const text = "text" in ctx.message ? ctx.message.text : "";
     if (userId && isAdmin(userId)) {
-      if (text === "Обновить ранее созданные ордера") {
-        await handleUpdateOrders(ctx);
-        return;
-      }
       if (text === "Export all") {
         await handleExportAll(ctx);
         return;

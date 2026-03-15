@@ -1,6 +1,5 @@
 import { Pool } from "pg";
 import type { Trade } from "../types/trade";
-import { getProfitUsdt } from "../utils/profitUtils";
 
 const DATABASE_URL = process.env.DATABASE_URL;
 if (!DATABASE_URL) {
@@ -145,32 +144,4 @@ export async function getAllUsersData(): Promise<Record<string, Trade[]>> {
     byUser[uid].push(rowToTrade(row));
   }
   return byUser;
-}
-
-export async function updateAllTradesWithProfitUsdt(): Promise<{
-  usersUpdated: number;
-  tradesUpdated: number;
-}> {
-  const allData = await getAllUsersData();
-  let tradesUpdated = 0;
-  let usersUpdated = 0;
-
-  for (const [userIdStr, trades] of Object.entries(allData)) {
-    const userId = parseInt(userIdStr, 10);
-    let changed = false;
-    for (const t of trades) {
-      if (t.profitUsdt === undefined) {
-        const profitUsdt = getProfitUsdt(t);
-        await pool.query(
-          "UPDATE trades SET profit_usdt = $1 WHERE user_id = $2 AND order_id = $3",
-          [profitUsdt, userId, t.order_id]
-        );
-        tradesUpdated++;
-        changed = true;
-      }
-    }
-    if (changed) usersUpdated++;
-  }
-
-  return { usersUpdated, tradesUpdated };
 }
