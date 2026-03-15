@@ -80,15 +80,15 @@ function aggregateStats(trades: Trade[]): StatsResult {
   };
 }
 
-export function getStats(userId: number, period: PeriodKey): StatsResult {
+export async function getStats(userId: number, period: PeriodKey): Promise<StatsResult> {
   const { start, end } = getBoundsForPeriod(period);
-  const trades = db.queryByPeriod(userId, start, end);
+  const trades = await db.queryByPeriod(userId, start, end);
   return aggregateStats(trades);
 }
 
-export function getTradesForPeriod(userId: number, period: PeriodKey): TradeWithProfit[] {
+export async function getTradesForPeriod(userId: number, period: PeriodKey): Promise<TradeWithProfit[]> {
   const { start, end } = getBoundsForPeriod(period);
-  const trades = db.queryByPeriod(userId, start, end);
+  const trades = await db.queryByPeriod(userId, start, end);
   const withProfit = trades.map((t) => ({
     ...t,
     profitUsdt: t.profitUsdt ?? getProfitUsdt(t),

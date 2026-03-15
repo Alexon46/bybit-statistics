@@ -58,7 +58,7 @@ function createStatsHandler(period: PeriodKey) {
     await tryDeleteUserMessage(ctx);
     await deletePreviousBotMessages(ctx);
 
-    const stats = getStats(userId, period);
+    const stats = await getStats(userId, period);
     const label = `📊 ${PERIOD_LABELS[period]}`;
     const keyboard = stats.count > 0 ? getDetailKeyboard(period) : undefined;
     const msg = await ctx.reply(formatStats(stats, label), keyboard ?? {});
@@ -96,7 +96,7 @@ export async function handleDetailCallback(ctx: Context): Promise<void> {
 
   await ctx.answerCbQuery();
 
-  const trades = getTradesForPeriod(userId, period);
+  const trades = await getTradesForPeriod(userId, period);
   const label = PERIOD_LABELS[period];
   const noButton = { reply_markup: { inline_keyboard: [] } };
 

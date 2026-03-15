@@ -65,7 +65,7 @@ export async function handlePhoto(ctx: Context): Promise<void> {
       return;
     }
 
-    if (db.exists(trade.order_id, userId)) {
+    if (await db.exists(trade.order_id, userId)) {
       await editStatusMessage(
         ctx,
         statusMsg.message_id,
@@ -76,7 +76,7 @@ export async function handlePhoto(ctx: Context): Promise<void> {
     }
 
     const tradeWithProfit = { ...trade, profitUsdt: getProfitUsdt(trade) };
-    db.insert(tradeWithProfit, userId);
+    await db.insert(tradeWithProfit, userId);
 
     const summary = [
       `Ордер сохранён: ${trade.order_id}`,

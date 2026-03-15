@@ -37,7 +37,7 @@ export async function handleUpdateOrders(ctx: Context): Promise<void> {
   const statusMsg = await ctx.reply("Обновляю данные...");
 
   try {
-    const { usersUpdated, tradesUpdated } = db.updateAllTradesWithProfitUsdt();
+    const { usersUpdated, tradesUpdated } = await db.updateAllTradesWithProfitUsdt();
     await ctx.telegram.editMessageText(
       ctx.chat!.id,
       statusMsg.message_id,
@@ -64,7 +64,7 @@ export async function handleExportAll(ctx: Context): Promise<void> {
   const statusMsg = await ctx.reply("Формирую экспорт...");
 
   try {
-    const data = db.getAllUsersData();
+    const data = await db.getAllUsersData();
     const json = JSON.stringify(data, null, 2);
     const buffer = Buffer.from(json, "utf-8");
     const filename = `bybit-export-${new Date().toISOString().slice(0, 10)}.json`;
