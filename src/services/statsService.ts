@@ -1,5 +1,6 @@
 import * as db from "./databaseService";
 import type { Trade } from "../types/trade";
+import { getProfitUsdt } from "../utils/profitUtils";
 import { PERIOD_LABELS, DETAIL_REPORT_SEPARATOR } from "../constants";
 
 export type PeriodKey = keyof typeof PERIOD_LABELS;
@@ -15,21 +16,7 @@ export interface TradeWithProfit extends Trade {
   profitUsdt: number;
 }
 
-function getProfitUsdt(t: Trade): number {
-  const invIsUsdt = t.investment_currency.toUpperCase() === "USDT";
-  const yieldIsUsdt = t.yield_currency.toUpperCase() === "USDT";
-
-  if (invIsUsdt && yieldIsUsdt) {
-    return t.yield_amount - t.investment_amount;
-  }
-  if (invIsUsdt) {
-    return t.yield_amount * t.target_price - t.investment_amount;
-  }
-  if (yieldIsUsdt) {
-    return t.yield_amount - t.investment_amount * t.target_price;
-  }
-  return (t.yield_amount - t.investment_amount) * t.settlement_price;
-}
+export { getProfitUsdt };
 
 function getWeekBounds(weekOffset: number): { start: Date; end: Date } {
   const now = new Date();
@@ -72,7 +59,7 @@ function aggregateStats(trades: Trade[]): StatsResult {
   let aprCount = 0;
 
   for (const t of trades) {
-    const profitUsdt = getProfitUsdt(t);
+    const profitUsdt = t.profitUsdt ?? getProfitUsdt(t);
     totalProfitUsdt += profitUsdt;
     if (t.apr > 0) {
       aprSum += t.apr;
@@ -102,7 +89,16 @@ export function getStats(userId: number, period: PeriodKey): StatsResult {
 export function getTradesForPeriod(userId: number, period: PeriodKey): TradeWithProfit[] {
   const { start, end } = getBoundsForPeriod(period);
   const trades = db.queryByPeriod(userId, start, end);
-  return trades.map((t) => ({ ...t, profitUsdt: getProfitUsdt(t) }));
+  const withProfit = trades.map((t) => ({
+    ...t,
+    profitUsdt: t.profitUsdt ?? getProfitUsdt(t),
+  }));
+  withProfit.sort((a, b) => {
+    const timeA = a.settlement_time ? new Date(a.settlement_time).getTime() : 0;
+    const timeB = b.settlement_time ? new Date(b.settlement_time).getTime() : 0;
+    return timeA - timeB;
+  });
+  return withProfit;
 }
 
 export function formatStats(stats: StatsResult, periodLabel: string): string {

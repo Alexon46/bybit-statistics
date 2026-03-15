@@ -1,3 +1,5 @@
+export const ADMIN_USER_ID = 177845028;
+
 export const TELEGRAM_MESSAGE_LIMIT = 4000;
 export const GEMINI_IMAGE_WIDTH = 380;
 

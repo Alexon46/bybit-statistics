@@ -1,6 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import type { Trade } from "../types/trade";
+import { getProfitUsdt } from "../utils/profitUtils";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 
@@ -58,4 +59,46 @@ export function queryByPeriod(
     const settlementDate = new Date(t.settlement_time);
     return settlementDate >= startTime && settlementDate <= endTime;
   });
+}
+
+export function getAllUserIds(): number[] {
+  ensureDataDir();
+  const files = fs.readdirSync(DATA_DIR);
+  return files
+    .filter((f) => f.endsWith(".json"))
+    .map((f) => parseInt(f.replace(".json", ""), 10))
+    .filter((id) => !Number.isNaN(id));
+}
+
+export function getAllUsersData(): Record<string, Trade[]> {
+  const userIds = getAllUserIds();
+  const result: Record<string, Trade[]> = {};
+  for (const userId of userIds) {
+    result[String(userId)] = readUserTrades(userId);
+  }
+  return result;
+}
+
+export function updateAllTradesWithProfitUsdt(): { usersUpdated: number; tradesUpdated: number } {
+  const userIds = getAllUserIds();
+  let tradesUpdated = 0;
+  let usersUpdated = 0;
+
+  for (const userId of userIds) {
+    const trades = readUserTrades(userId);
+    let changed = false;
+    for (const t of trades) {
+      if (t.profitUsdt === undefined) {
+        (t as Trade & { profitUsdt: number }).profitUsdt = getProfitUsdt(t);
+        tradesUpdated++;
+        changed = true;
+      }
+    }
+    if (changed) {
+      writeUserTrades(userId, trades);
+      usersUpdated++;
+    }
+  }
+
+  return { usersUpdated, tradesUpdated };
 }

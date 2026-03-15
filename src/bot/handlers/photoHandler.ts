@@ -1,5 +1,6 @@
 import type { Context } from "telegraf";
 import { extractTradeFromImage } from "../../services/geminiService";
+import { getProfitUsdt } from "../../services/statsService";
 import * as db from "../../services/databaseService";
 import { tryDeleteUserMessage, deletePreviousBotMessages } from "../helpers/telegram";
 import { storeMessageIds } from "../helpers/messageStore";
@@ -74,7 +75,8 @@ export async function handlePhoto(ctx: Context): Promise<void> {
       return;
     }
 
-    db.insert(trade, userId);
+    const tradeWithProfit = { ...trade, profitUsdt: getProfitUsdt(trade) };
+    db.insert(tradeWithProfit, userId);
 
     const summary = [
       `Ордер сохранён: ${trade.order_id}`,

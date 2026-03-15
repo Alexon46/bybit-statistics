@@ -16,4 +16,6 @@ export interface Trade {
   yield_currency: string;
   to_account: string;
   created_at?: string;
+  /** Pre-calculated profit in USDT, set during order creation */
+  profitUsdt?: number;
 }

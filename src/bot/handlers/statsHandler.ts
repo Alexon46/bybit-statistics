@@ -11,6 +11,7 @@ import {
 import { PERIOD_LABELS, TELEGRAM_MESSAGE_LIMIT } from "../../constants";
 import { tryDeleteUserMessage, deletePreviousBotMessages } from "../helpers/telegram";
 import { storeMessageIds } from "../helpers/messageStore";
+import { isAdmin } from "./adminHandler";
 
 const PERIODS: PeriodKey[] = ["week", "lastweek", "month", "lastmonth"];
 
@@ -36,7 +37,17 @@ export async function handleStart(ctx: Context): Promise<void> {
     "",
     "Используй кнопки ниже для быстрой статистики:",
   ].join("\n");
-  await ctx.reply(text, statsKeyboard);
+  const userId = ctx.from?.id;
+  const keyboard = userId && isAdmin(userId)
+    ? Markup.keyboard([
+        ["/week", "/lastweek"],
+        ["/month", "/lastmonth"],
+        ["/admin"],
+      ])
+      .resize()
+      .persistent()
+    : statsKeyboard;
+  await ctx.reply(text, keyboard);
 }
 
 function createStatsHandler(period: PeriodKey) {
