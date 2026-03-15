@@ -68,7 +68,7 @@ export async function exists(orderId: string, userId: number): Promise<boolean> 
     "SELECT 1 FROM trades WHERE user_id = $1 AND order_id = $2 LIMIT 1",
     [userId, orderId]
   );
-  return result.rowCount > 0;
+  return (result.rowCount ?? 0) > 0;
 }
 
 export async function insert(trade: Trade, userId: number): Promise<void> {
