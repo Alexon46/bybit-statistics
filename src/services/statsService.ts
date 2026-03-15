@@ -1,0 +1,169 @@
+import * as db from "./databaseService";
+import type { Trade } from "../types/trade";
+import { PERIOD_LABELS, DETAIL_REPORT_SEPARATOR } from "../constants";
+
+export type PeriodKey = keyof typeof PERIOD_LABELS;
+
+export interface StatsResult {
+  count: number;
+  totalProfitUsdt: number;
+  avgApr: number;
+  byPair: Record<string, { count: number; profitUsdt: number }>;
+}
+
+export interface TradeWithProfit extends Trade {
+  profitUsdt: number;
+}
+
+function getProfitUsdt(t: Trade): number {
+  const invIsUsdt = t.investment_currency.toUpperCase() === "USDT";
+  const yieldIsUsdt = t.yield_currency.toUpperCase() === "USDT";
+
+  if (invIsUsdt && yieldIsUsdt) {
+    return t.yield_amount - t.investment_amount;
+  }
+  if (invIsUsdt) {
+    return t.yield_amount * t.target_price - t.investment_amount;
+  }
+  if (yieldIsUsdt) {
+    return t.yield_amount - t.investment_amount * t.target_price;
+  }
+  return (t.yield_amount - t.investment_amount) * t.settlement_price;
+}
+
+function getWeekBounds(weekOffset: number): { start: Date; end: Date } {
+  const now = new Date();
+  const dayOfWeek = now.getUTCDay();
+  const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  const thisMonday = new Date(now);
+  thisMonday.setUTCDate(now.getUTCDate() + mondayOffset);
+  thisMonday.setUTCHours(0, 0, 0, 0);
+
+  const start = new Date(thisMonday);
+  start.setUTCDate(thisMonday.getUTCDate() + weekOffset * 7);
+  const end = new Date(start);
+  end.setUTCDate(start.getUTCDate() + 7);
+  end.setMilliseconds(-1);
+
+  return { start, end };
+}
+
+function getMonthBounds(monthOffset: number): { start: Date; end: Date } {
+  const now = new Date();
+  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + monthOffset, 1));
+  const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + monthOffset + 1, 0, 23, 59, 59, 999));
+  return { start, end };
+}
+
+function getBoundsForPeriod(period: PeriodKey): { start: Date; end: Date } {
+  const periodMap: Record<PeriodKey, () => { start: Date; end: Date }> = {
+    week: () => getWeekBounds(0),
+    lastweek: () => getWeekBounds(-1),
+    month: () => getMonthBounds(0),
+    lastmonth: () => getMonthBounds(-1),
+  };
+  return periodMap[period]();
+}
+
+function aggregateStats(trades: Trade[]): StatsResult {
+  const byPair: Record<string, { count: number; profitUsdt: number }> = {};
+  let totalProfitUsdt = 0;
+  let aprSum = 0;
+  let aprCount = 0;
+
+  for (const t of trades) {
+    const profitUsdt = getProfitUsdt(t);
+    totalProfitUsdt += profitUsdt;
+    if (t.apr > 0) {
+      aprSum += t.apr;
+      aprCount++;
+    }
+    if (!byPair[t.pair]) {
+      byPair[t.pair] = { count: 0, profitUsdt: 0 };
+    }
+    byPair[t.pair].count++;
+    byPair[t.pair].profitUsdt += profitUsdt;
+  }
+
+  return {
+    count: trades.length,
+    totalProfitUsdt,
+    avgApr: aprCount > 0 ? aprSum / aprCount : 0,
+    byPair,
+  };
+}
+
+export function getStats(userId: number, period: PeriodKey): StatsResult {
+  const { start, end } = getBoundsForPeriod(period);
+  const trades = db.queryByPeriod(userId, start, end);
+  return aggregateStats(trades);
+}
+
+export function getTradesForPeriod(userId: number, period: PeriodKey): TradeWithProfit[] {
+  const { start, end } = getBoundsForPeriod(period);
+  const trades = db.queryByPeriod(userId, start, end);
+  return trades.map((t) => ({ ...t, profitUsdt: getProfitUsdt(t) }));
+}
+
+export function formatStats(stats: StatsResult, periodLabel: string): string {
+  if (stats.count === 0) {
+    return `${periodLabel}\n\nНет данных за выбранный период.`;
+  }
+
+  const lines = [
+    periodLabel,
+    "",
+    `Сделок: ${stats.count}`,
+    `Средний APR: ${stats.avgApr.toFixed(2)}%`,
+    `Доходность (USDT): ${stats.totalProfitUsdt.toFixed(2)}`,
+    "",
+    "По парам:",
+  ];
+
+  for (const [pair, data] of Object.entries(stats.byPair)) {
+    lines.push(`  ${pair}: ${data.count} сделок, доход ${data.profitUsdt.toFixed(2)} USDT`);
+  }
+
+  return lines.join("\n");
+}
+
+export function formatDetailReport(
+  trades: TradeWithProfit[],
+  periodLabel: string
+): { text: string; lines: string[] } {
+  const lines = [`📋 Детальный отчёт: ${periodLabel}\n`];
+  let total = 0;
+
+  for (let i = 0; i < trades.length; i++) {
+    if (i > 0) lines.push(DETAIL_REPORT_SEPARATOR);
+    const t = trades[i];
+    const date = t.settlement_time
+      ? new Date(t.settlement_time).toLocaleDateString("ru-RU", {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+        })
+      : "—";
+    lines.push(`${t.pair} | ${date} | ${t.profitUsdt.toFixed(2)} USDT`);
+    total += t.profitUsdt;
+  }
+  lines.push(DETAIL_REPORT_SEPARATOR, `Итого: ${total.toFixed(2)} USDT`);
+
+  return { text: lines.join("\n"), lines };
+}
+
+export function splitIntoChunks(lines: string[], maxLength: number): string[] {
+  const chunks: string[] = [];
+  let current = "";
+
+  for (const line of lines) {
+    if (current.length + line.length + 1 > maxLength) {
+      chunks.push(current);
+      current = line;
+    } else {
+      current += (current ? "\n" : "") + line;
+    }
+  }
+  if (current) chunks.push(current);
+  return chunks;
+}
