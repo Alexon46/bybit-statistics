@@ -1,5 +1,14 @@
 import type { Trade } from "../types/trade";
 
+/** Investment notional in USDT (USDT leg as-is; base currency × price in USDT). */
+export function getInvestmentUsdt(t: Trade): number {
+  if (t.investment_currency.toUpperCase() === "USDT") {
+    return t.investment_amount;
+  }
+  const price = t.settlement_price > 0 ? t.settlement_price : t.target_price;
+  return t.investment_amount * price;
+}
+
 export function getProfitUsdt(t: Trade): number {
   const invIsUsdt = t.investment_currency.toUpperCase() === "USDT";
   const yieldIsUsdt = t.yield_currency.toUpperCase() === "USDT";

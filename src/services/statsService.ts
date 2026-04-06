@@ -1,6 +1,6 @@
 import * as db from "./databaseService";
 import type { Trade } from "../types/trade";
-import { getProfitUsdt } from "../utils/profitUtils";
+import { getProfitUsdt, getInvestmentUsdt } from "../utils/profitUtils";
 import { PERIOD_LABELS, DETAIL_REPORT_SEPARATOR } from "../constants";
 
 export type PeriodKey = keyof typeof PERIOD_LABELS;
@@ -8,6 +8,10 @@ export type PeriodKey = keyof typeof PERIOD_LABELS;
 export interface StatsResult {
   count: number;
   totalProfitUsdt: number;
+  /** Average investment notional per order in USDT */
+  avgOrderSizeUsdt: number;
+  /** totalProfitUsdt / total investment in USDT × 100 (portfolio-level return) */
+  avgReturnPercent: number;
   avgApr: number;
   byPair: Record<string, { count: number; profitUsdt: number }>;
 }
@@ -55,12 +59,14 @@ function getBoundsForPeriod(period: PeriodKey): { start: Date; end: Date } {
 function aggregateStats(trades: Trade[]): StatsResult {
   const byPair: Record<string, { count: number; profitUsdt: number }> = {};
   let totalProfitUsdt = 0;
+  let totalInvestmentUsdt = 0;
   let aprSum = 0;
   let aprCount = 0;
 
   for (const t of trades) {
     const profitUsdt = t.profitUsdt ?? getProfitUsdt(t);
     totalProfitUsdt += profitUsdt;
+    totalInvestmentUsdt += getInvestmentUsdt(t);
     if (t.apr > 0) {
       aprSum += t.apr;
       aprCount++;
@@ -72,9 +78,14 @@ function aggregateStats(trades: Trade[]): StatsResult {
     byPair[t.pair].profitUsdt += profitUsdt;
   }
 
+  const n = trades.length;
+  const avgReturnPercent =
+    totalInvestmentUsdt > 0 ? (totalProfitUsdt / totalInvestmentUsdt) * 100 : 0;
   return {
-    count: trades.length,
+    count: n,
     totalProfitUsdt,
+    avgOrderSizeUsdt: n > 0 ? totalInvestmentUsdt / n : 0,
+    avgReturnPercent,
     avgApr: aprCount > 0 ? aprSum / aprCount : 0,
     byPair,
   };
@@ -110,8 +121,9 @@ export function formatStats(stats: StatsResult, periodLabel: string): string {
     periodLabel,
     "",
     `Сделок: ${stats.count}`,
+    `Средний размер ордера (USDT): ${stats.avgOrderSizeUsdt.toFixed(2)}`,
     `Средний APR: ${stats.avgApr.toFixed(2)}%`,
-    `Доходность (USDT): ${stats.totalProfitUsdt.toFixed(2)}`,
+    `Доходность (USDT): ${stats.totalProfitUsdt.toFixed(2)} (${stats.avgReturnPercent.toFixed(2)}%)`,
     "",
     "По парам:",
   ];
