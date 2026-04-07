@@ -10,7 +10,7 @@ export interface StatsResult {
   totalProfitUsdt: number;
   /** Average investment notional per order in USDT */
   avgOrderSizeUsdt: number;
-  /** totalProfitUsdt / total investment in USDT × 100 (portfolio-level return) */
+  /** totalProfitUsdt / avgOrderSizeUsdt × 100 */
   avgReturnPercent: number;
   avgApr: number;
   byPair: Record<string, { count: number; profitUsdt: number }>;
@@ -79,12 +79,13 @@ function aggregateStats(trades: Trade[]): StatsResult {
   }
 
   const n = trades.length;
+  const avgOrderSizeUsdt = n > 0 ? totalInvestmentUsdt / n : 0;
   const avgReturnPercent =
-    totalInvestmentUsdt > 0 ? (totalProfitUsdt / totalInvestmentUsdt) * 100 : 0;
+    avgOrderSizeUsdt > 0 ? (totalProfitUsdt / avgOrderSizeUsdt) * 100 : 0;
   return {
     count: n,
     totalProfitUsdt,
-    avgOrderSizeUsdt: n > 0 ? totalInvestmentUsdt / n : 0,
+    avgOrderSizeUsdt,
     avgReturnPercent,
     avgApr: aprCount > 0 ? aprSum / aprCount : 0,
     byPair,
